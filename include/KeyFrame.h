@@ -161,9 +161,9 @@ public:
 
     // KeyPoints, stereo coordinate and descriptors (all associated by an index)
     const std::vector<cv::KeyPoint> mvKeys;
-    const std::vector<cv::KeyPoint> mvKeysUn;
-    const std::vector<float> mvuRight; // negative value for monocular points, 双目
-    const std::vector<float> mvDepth; // negative value for monocular points, RGBD
+    const std::vector<cv::KeyPoint> mvKeysUn; //矫正后
+    const std::vector<float> mvuRight; // negative value for monocular points, 双目右图的横坐标
+    const std::vector<float> mvDepth; // negative value for monocular points, 
     const cv::Mat mDescriptors;
 
     //BoW
@@ -181,7 +181,7 @@ public:
     const std::vector<float> mvLevelSigma2;
     const std::vector<float> mvInvLevelSigma2;
 
-    // Image bounds and calibration
+    // Image bounds and calibration //矫正后的image边界范围
     const int mnMinX;
     const int mnMinY;
     const int mnMaxX;
@@ -209,9 +209,9 @@ protected:
     // Grid over the image to speed up feature matching
     std::vector< std::vector <std::vector<size_t> > > mGrid;
 
-    std::map<KeyFrame*,int> mConnectedKeyFrameWeights;
-    std::vector<KeyFrame*> mvpOrderedConnectedKeyFrames;
-    std::vector<int> mvOrderedWeights;
+    std::map<KeyFrame*,int> mConnectedKeyFrameWeights; //与该关键帧连接的关键帧与权重
+    std::vector<KeyFrame*> mvpOrderedConnectedKeyFrames;//排序后的关键帧
+    std::vector<int> mvOrderedWeights; //排序后的权重(从大到小)
 
     // Spanning Tree and Loop Edges
     bool mbFirstConnection;
