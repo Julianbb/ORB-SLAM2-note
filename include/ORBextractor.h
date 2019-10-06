@@ -29,6 +29,8 @@
 namespace ORB_SLAM2
 {
 
+
+// 一个node相当于：一个矩形区域内，这里面包含了n(n>=1) 个关键点
 class ExtractorNode
 {
 public:
@@ -37,10 +39,12 @@ public:
     void DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4);
 
     std::vector<cv::KeyPoint> vKeys;
-    cv::Point2i UL, UR, BL, BR;
+    cv::Point2i UL, UR, BL, BR;  // bottom up left right
     std::list<ExtractorNode>::iterator lit;
     bool bNoMore;
 };
+
+
 
 class ORBextractor
 {
@@ -82,7 +86,7 @@ public:
         return mvInvLevelSigma2;
     }
 
-    std::vector<cv::Mat> mvImagePyramid;
+    std::vector<cv::Mat> mvImagePyramid;     //图像金字塔 存放各层的图片
 
 protected:
 
@@ -94,18 +98,18 @@ protected:
     void ComputeKeyPointsOld(std::vector<std::vector<cv::KeyPoint> >& allKeypoints);
     std::vector<cv::Point> pattern;
 
-    int nfeatures;
-    double scaleFactor;
-    int nlevels;
-    int iniThFAST;
-    int minThFAST;
+    int nfeatures; // 总层数提取特征点的最大数量
+    double scaleFactor; // 层与层之间的 尺度因子(缩放比例)
+    int nlevels; // 一共有几层
+    int iniThFAST; //提取FAST角点时初始阈值
+    int minThFAST; // 提取FAST角点较小的阈值，防止出现检测不到角点的情况，使用较小的阈值
 
-    std::vector<int> mnFeaturesPerLevel;
+    std::vector<int> mnFeaturesPerLevel; //每层的特征数量
 
-    std::vector<int> umax;
+    std::vector<int> umax; //  定义一个vector，用来保存每个v对应的最大坐标u
 
-    std::vector<float> mvScaleFactor;
-    std::vector<float> mvInvScaleFactor;    
+    std::vector<float> mvScaleFactor; //每层的相对于原始图像的缩放比例,  上*mvScaleFactor = 下
+    std::vector<float> mvInvScaleFactor; //每层的相对于原始图像的缩放比例的倒数 , mvInvScaleFactor*下=上
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
 };

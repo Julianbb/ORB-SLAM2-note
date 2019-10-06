@@ -47,6 +47,7 @@ public:
 
 private:
 
+    //画图用的,从 yaml文件读取
     float mKeyFrameSize;
     float mKeyFrameLineWidth;
     float mGraphLineWidth;

@@ -74,13 +74,14 @@ const int HALF_PATCH_SIZE = 15;
 const int EDGE_THRESHOLD = 19;
 
 
+// 灰度质心法计算特征点方向
 static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
 {
-    int m_01 = 0, m_10 = 0;
+    int m_01 = 0, m_10 = 0; //初始化矩
 
-    const uchar* center = &image.at<uchar> (cvRound(pt.y), cvRound(pt.x));
+    const uchar* center = &image.at<uchar> (cvRound(pt.y), cvRound(pt.x)); //uv的正负是以中心为原点
 
-    // Treat the center line differently, v=0
+    // Treat the center line differently, v=0， 中间横线
     for (int u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; ++u)
         m_10 += u * center[u];
 
@@ -91,11 +92,11 @@ static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
         // Proceed over the two lines
         int v_sum = 0;
         int d = u_max[v];
-        for (int u = -d; u <= d; ++u)
+        for (int u = -d; u <= d; ++u) //从左到右
         {
-            int val_plus = center[u + v*step], val_minus = center[u - v*step];
-            v_sum += (val_plus - val_minus);
-            m_10 += u * (val_plus + val_minus);
+            int val_plus = center[u + v*step], val_minus = center[u - v*step];// 上下两行对称
+            v_sum += (val_plus - val_minus); // 后面的负号其实是针对 v的 , v* (val_plus - val_minus)
+            m_10 += u * (val_plus + val_minus); // +-u *(val_plus + val_minus)
         }
         m_01 += v * v_sum;
     }
@@ -104,26 +105,28 @@ static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
 }
 
 
+//计算一个特征点的描述子(考虑了角度)，按照预定的选取点对的方式，比较两个点的灰度值
 const float factorPI = (float)(CV_PI/180.f);
 static void computeOrbDescriptor(const KeyPoint& kpt,
                                  const Mat& img, const Point* pattern,
                                  uchar* desc)
 {
-    float angle = (float)kpt.angle*factorPI;
+    float angle = (float)kpt.angle*factorPI; //转成弧度
     float a = (float)cos(angle), b = (float)sin(angle);
 
     const uchar* center = &img.at<uchar>(cvRound(kpt.pt.y), cvRound(kpt.pt.x));
-    const int step = (int)img.step;
+    const int step = (int)img.step; 
 
+    // 得到一个点相对于中心点的位置，得到灰度值
     #define GET_VALUE(idx) \
         center[cvRound(pattern[idx].x*b + pattern[idx].y*a)*step + \
                cvRound(pattern[idx].x*a - pattern[idx].y*b)]
 
 
-    for (int i = 0; i < 32; ++i, pattern += 16)
+    for (int i = 0; i < 32; ++i, pattern += 16) // 8*32 = 256bit
     {
         int t0, t1, val;
-        t0 = GET_VALUE(0); t1 = GET_VALUE(1);
+        t0 = GET_VALUE(0); t1 = GET_VALUE(1); // pattern里面的一行,相当于一个点对
         val = t0 < t1;
         t0 = GET_VALUE(2); t1 = GET_VALUE(3);
         val |= (t0 < t1) << 1;
@@ -407,21 +410,34 @@ static int bit_pattern_31_[256*4] =
     -1,-6, 0,-11/*mean (0.127148), correlation (0.547401)*/
 };
 
+
+
+
+
+
+
+
+
+
+
+
 ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
          int _iniThFAST, int _minThFAST):
     nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(_nlevels),
     iniThFAST(_iniThFAST), minThFAST(_minThFAST)
 {
+
+    //每层的相对于原始图像的缩放比例因子
     mvScaleFactor.resize(nlevels);
     mvLevelSigma2.resize(nlevels);
     mvScaleFactor[0]=1.0f;
     mvLevelSigma2[0]=1.0f;
     for(int i=1; i<nlevels; i++)
     {
-        mvScaleFactor[i]=mvScaleFactor[i-1]*scaleFactor;
+        mvScaleFactor[i]=mvScaleFactor[i-1]*scaleFactor;  // 每层的尺度因子是由低层*scaleFactor
         mvLevelSigma2[i]=mvScaleFactor[i]*mvScaleFactor[i];
     }
-
+    // 每层的相对于原始图像的缩放比例因子的倒数
     mvInvScaleFactor.resize(nlevels);
     mvInvLevelSigma2.resize(nlevels);
     for(int i=0; i<nlevels; i++)
@@ -430,8 +446,11 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
         mvInvLevelSigma2[i]=1.0f/mvLevelSigma2[i];
     }
 
-    mvImagePyramid.resize(nlevels);
 
+
+    mvImagePyramid.resize(nlevels);
+    
+    // 计算每层的特征点数量
     mnFeaturesPerLevel.resize(nlevels);
     float factor = 1.0f / scaleFactor;
     float nDesiredFeaturesPerScale = nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels));
@@ -444,22 +463,39 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
         nDesiredFeaturesPerScale *= factor;
     }
     mnFeaturesPerLevel[nlevels-1] = std::max(nfeatures - sumFeatures, 0);
+    //  第一层：nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels))
+    //  第二层：nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels))*factor
+    //  第三层：nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels))*factor*factor
+    //   .........
+    //  第nlevels层：nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels))*factor^nlevels
+    //  那么前nlevels层的和为总的特征点数量nfeatures（等比数列的前n相和）
+    //  可以看出ORB特征点是如何实现尺度不变性的，原始图像那一层特征点最多，依次递减
+    //  主要是将每层的特征点数量进行均匀控制
 
+
+
+    //复制 descriptor提取的模板(bit_pattern_31_  ->  pattern)
     const int npoints = 512;
     const Point* pattern0 = (const Point*)bit_pattern_31_;
     std::copy(pattern0, pattern0 + npoints, std::back_inserter(pattern));
 
+
+
     //This is for orientation
     // pre-compute the end of a row in a circular patch
+    // 定义一个vector，用来保存每个v对应的最大坐标u
     umax.resize(HALF_PATCH_SIZE + 1);
 
+    //没看懂这块到底怎么来计算的，反正就是计算一个patch里面每个v对应的最大u
     int v, v0, vmax = cvFloor(HALF_PATCH_SIZE * sqrt(2.f) / 2 + 1);
     int vmin = cvCeil(HALF_PATCH_SIZE * sqrt(2.f) / 2);
     const double hp2 = HALF_PATCH_SIZE*HALF_PATCH_SIZE;
+    //V坐标的第一部分
     for (v = 0; v <= vmax; ++v)
-        umax[v] = cvRound(sqrt(hp2 - v * v));
+        umax[v] = cvRound(sqrt(hp2 - v * v)); //勾股定理
 
     // Make sure we are symmetric
+    // V坐标的第二部分
     for (v = HALF_PATCH_SIZE, v0 = 0; v >= vmin; --v)
     {
         while (umax[v0] == umax[v0 + 1])
@@ -469,6 +505,8 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
     }
 }
 
+
+// 计算每个特征点的角度
 static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, const vector<int>& umax)
 {
     for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
@@ -478,6 +516,19 @@ static void computeOrientation(const Mat& image, vector<KeyPoint>& keypoints, co
     }
 }
 
+/*
+        -------------------
+        |        |        |
+        |   n1   |    n2  |
+        |        |        |
+        -------------------
+        |        |        |
+        |   n3   |    n4  |
+        |        |        |
+        -------------------
+*/
+
+//将一个node往下拆分为 4个node
 void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNode &n3, ExtractorNode &n4)
 {
     const int halfX = ceil(static_cast<float>(UR.x-UL.x)/2);
@@ -509,6 +560,7 @@ void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNo
     n4.vKeys.reserve(vKeys.size());
 
     //Associate points to childs
+    // 将关键点分给四个孩子
     for(size_t i=0;i<vKeys.size();i++)
     {
         const cv::KeyPoint &kp = vKeys[i];
@@ -524,7 +576,7 @@ void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNo
         else
             n4.vKeys.push_back(kp);
     }
-
+    //如果孩子的关键点只有一个了，正在不能在分了，设置标志位 
     if(n1.vKeys.size()==1)
         n1.bNoMore = true;
     if(n2.vKeys.size()==1)
@@ -536,6 +588,8 @@ void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNo
 
 }
 
+
+// 
 vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>& vToDistributeKeys, const int &minX,
                                        const int &maxX, const int &minY, const int &maxY, const int &N, const int &level)
 {
@@ -762,14 +816,18 @@ vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>&
     return vResultKeys;
 }
 
+
+//提取特征点, 每层分别检测，在每层中进行 分割cell，对每个cell进行检测
+//检测完成之后使用DistributeOcTree函数对检测到所有的角点进行筛选，使得角点分布均匀
 void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoints)
 {
     allKeypoints.resize(nlevels);
 
-    const float W = 30;
+    const float W = 30; //cell的大小
 
-    for (int level = 0; level < nlevels; ++level)
+    for(int level = 0; level < nlevels; ++level) //对每层提取关键点
     {
+        //每层的范围，3个像素的容忍
         const int minBorderX = EDGE_THRESHOLD-3;
         const int minBorderY = minBorderX;
         const int maxBorderX = mvImagePyramid[level].cols-EDGE_THRESHOLD+3;
@@ -781,19 +839,20 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         const float width = (maxBorderX-minBorderX);
         const float height = (maxBorderY-minBorderY);
 
-        const int nCols = width/W;
-        const int nRows = height/W;
-        const int wCell = ceil(width/nCols);
-        const int hCell = ceil(height/nRows);
+        const int nCols = width/W; // 以cell为单位，相当于 横坐标
+        const int nRows = height/W; // 以cell为单位，相当于 纵坐标
+        const int wCell = ceil(width/nCols); // 每个cell的 cols
+        const int hCell = ceil(height/nRows); //  每个cell的 rows
 
-        for(int i=0; i<nRows; i++)
+        for(int i=0; i<nRows; i++) // 每个格子内 fast角点检测
         {
-            const float iniY =minBorderY+i*hCell;
-            float maxY = iniY+hCell+6;
+            const float iniY =minBorderY+i*hCell; //cell 内的初始 y
+            float maxY = iniY+hCell+6; // cell 内的终止 y
 
-            if(iniY>=maxBorderY-3)
+            //边界判断
+            if(iniY>=maxBorderY-3) 
                 continue;
-            if(maxY>maxBorderY)
+            if(maxY>maxBorderY) 
                 maxY = maxBorderY;
 
             for(int j=0; j<nCols; j++)
@@ -809,26 +868,26 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
                 FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                      vKeysCell,iniThFAST,true);
 
-                if(vKeysCell.empty())
+                if(vKeysCell.empty()) //如果提取不到角点，换一个小一点的阈值
                 {
                     FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                          vKeysCell,minThFAST,true);
                 }
 
-                if(!vKeysCell.empty())
+                if(!vKeysCell.empty()) 
                 {
                     for(vector<cv::KeyPoint>::iterator vit=vKeysCell.begin(); vit!=vKeysCell.end();vit++)
                     {
+                        //因为得到的点是在cell内的坐标，需要转成当前层的图的坐标
                         (*vit).pt.x+=j*wCell;
                         (*vit).pt.y+=i*hCell;
                         vToDistributeKeys.push_back(*vit);
                     }
                 }
-
             }
-        }
+        }  //至此得到了一层的关键点 vToDistributeKeys
 
-        vector<KeyPoint> & keypoints = allKeypoints[level];
+        vector<KeyPoint> & keypoints = allKeypoints[level]; //传出参数
         keypoints.reserve(nfeatures);
 
         keypoints = DistributeOctTree(vToDistributeKeys, minBorderX, maxBorderX,
@@ -851,6 +910,8 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
     for (int level = 0; level < nlevels; ++level)
         computeOrientation(mvImagePyramid[level], allKeypoints[level], umax);
 }
+
+
 
 void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint> > &allKeypoints)
 {
@@ -1031,6 +1092,8 @@ void ORBextractor::ComputeKeyPointsOld(std::vector<std::vector<KeyPoint> > &allK
         computeOrientation(mvImagePyramid[level], allKeypoints[level], umax);
 }
 
+
+//计算所有特征点的描述子
 static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Mat& descriptors,
                                const vector<Point>& pattern)
 {
@@ -1040,6 +1103,8 @@ static void computeDescriptors(const Mat& image, vector<KeyPoint>& keypoints, Ma
         computeOrbDescriptor(keypoints[i], image, &pattern[0], descriptors.ptr((int)i));
 }
 
+
+// 提取ORB特征点(关键点和描述子)
 void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPoint>& _keypoints,
                       OutputArray _descriptors)
 { 
@@ -1104,11 +1169,14 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
     }
 }
 
+
+
+// 构建高斯金字塔// TODO没看懂怎么迁移数据的??
 void ORBextractor::ComputePyramid(cv::Mat image)
 {
     for (int level = 0; level < nlevels; ++level)
     {
-        float scale = mvInvScaleFactor[level];
+        float scale = mvInvScaleFactor[level]; 
         Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
         Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
         Mat temp(wholeSize, image.type()), masktemp;

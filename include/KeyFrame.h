@@ -141,12 +141,12 @@ public:
     long unsigned int mnBAFixedForKF;
 
     // Variables used by the keyframe database
-    long unsigned int mnLoopQuery;
-    int mnLoopWords;
-    float mLoopScore;
-    long unsigned int mnRelocQuery;
-    int mnRelocWords;
-    float mRelocScore;
+    long unsigned int mnLoopQuery; //表明: 此帧和 id为mnLoopQuery 的关键帧可能为loop
+    int mnLoopWords;  // 与  id为mnLoopQuery 的关键帧的相同的Words数
+    float mLoopScore; //  与  id为mnLoopQuery 的关键帧的相似度评分
+    long unsigned int mnRelocQuery; //表明: id为mnRelocQuery 的关键帧为是重定位候选帧
+    int mnRelocWords; // same as above
+    float mRelocScore; //// same as above
 
     // Variables used by loop closing
     cv::Mat mTcwGBA;
@@ -167,7 +167,7 @@ public:
     const cv::Mat mDescriptors;
 
     //BoW
-    DBoW2::BowVector mBowVec;
+    DBoW2::BowVector mBowVec; //此关键帧对应的 词袋模型向量
     DBoW2::FeatureVector mFeatVec;
 
     // Pose relative to parent (this is computed when bad flag is activated)

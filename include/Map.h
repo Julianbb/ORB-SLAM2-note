@@ -67,6 +67,7 @@ public:
     std::mutex mMutexPointCreation;
 
 protected:
+    //set查找效率高一点
     std::set<MapPoint*> mspMapPoints;
     std::set<KeyFrame*> mspKeyFrames;
 

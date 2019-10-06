@@ -80,6 +80,8 @@ void MapDrawer::DrawMapPoints()
     glEnd();
 }
 
+
+
 void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)
 {
     const float &w = mKeyFrameSize;
