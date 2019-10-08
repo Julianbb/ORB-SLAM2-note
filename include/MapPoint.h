@@ -92,7 +92,7 @@ public:
     float mTrackProjX;
     float mTrackProjY;
     float mTrackProjXR;
-    bool mbTrackInView;//是否继续被投影
+    bool mbTrackInView;
     int mnTrackScaleLevel;
     float mTrackViewCos;
     long unsigned int mnTrackReferenceForFrame;
