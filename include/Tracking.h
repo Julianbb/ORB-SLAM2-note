@@ -155,6 +155,10 @@ protected:
     LoopClosing* mpLoopClosing;
 
     //ORB
+    // orb特征提取器，不管单目还是双目，mpORBextractorLeft都要用到
+    // 如果是双目，则要用到mpORBextractorRight
+    // 如果是单目，在初始化的时候使用mpIniORBextractor而不是mpORBextractorLeft，
+    // mpIniORBextractor属性中提取的特征点个数是mpORBextractorLeft的两倍
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
     ORBextractor* mpIniORBextractor;
 

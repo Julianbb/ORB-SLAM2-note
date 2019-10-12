@@ -260,7 +260,7 @@ float MapPoint::GetFoundRatio()
 }
 
 
-//计算最好(与其他描述子具有最小的距离中值)描述子
+//计算最好、区分度最高(与其他描述子具有最小的距离中值)描述子
 void MapPoint::ComputeDistinctiveDescriptors()
 {
     // Retrieve all observed descriptors

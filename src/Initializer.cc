@@ -29,7 +29,14 @@
 
 namespace ORB_SLAM2
 {
-
+/**
+ * @brief 给定参考帧构造Initializer
+ * 
+ * 用reference frame来初始化，这个reference frame就是SLAM正式开始的第一帧
+ * @param ReferenceFrame 参考帧
+ * @param sigma          测量误差
+ * @param iterations     RANSAC迭代次数
+ */
 Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iterations)
 {
     mK = ReferenceFrame.mK.clone();
@@ -41,6 +48,8 @@ Initializer::Initializer(const Frame &ReferenceFrame, float sigma, int iteration
     mMaxIterations = iterations;
 }
 
+
+
 bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatches12, cv::Mat &R21, cv::Mat &t21,
                              vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated)
 {
@@ -51,6 +60,7 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     mvMatches12.clear();
     mvMatches12.reserve(mvKeys2.size());
     mvbMatched1.resize(mvKeys1.size());
+    // 将vMatches12跟新到mvMatches12
     for(size_t i=0, iend=vMatches12.size();i<iend; i++)
     {
         if(vMatches12[i]>=0)
@@ -62,12 +72,11 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
             mvbMatched1[i]=false;
     }
 
-    const int N = mvMatches12.size();
+    const int N = mvMatches12.size(); //匹配数
 
     // Indices for minimum set selection
     vector<size_t> vAllIndices;
     vAllIndices.reserve(N);
-    vector<size_t> vAvailableIndices;
 
     for(int i=0; i<N; i++)
     {
@@ -75,11 +84,13 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
     }
 
     // Generate sets of 8 points for each RANSAC iteration
+    vector<size_t> vAvailableIndices;
+
     mvSets = vector< vector<size_t> >(mMaxIterations,vector<size_t>(8,0));
 
     DUtils::Random::SeedRandOnce(0);
 
-    for(int it=0; it<mMaxIterations; it++)
+    for(int it=0; it<mMaxIterations; it++) //每次循环，随机选择8个点
     {
         vAvailableIndices = vAllIndices;
 
@@ -89,8 +100,8 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
             int randi = DUtils::Random::RandomInt(0,vAvailableIndices.size()-1);
             int idx = vAvailableIndices[randi];
 
-            mvSets[it][j] = idx;
-
+            mvSets[it][j] = idx; //是 frame1的index
+            //把最后一个覆盖 vAvailableIndices[randi], 然后再删除最后一个，相当于将上面vAvailableIndices[randi]移除
             vAvailableIndices[randi] = vAvailableIndices.back();
             vAvailableIndices.pop_back();
         }
@@ -119,6 +130,8 @@ bool Initializer::Initialize(const Frame &CurrentFrame, const vector<int> &vMatc
 
     return false;
 }
+
+
 
 
 void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, cv::Mat &H21)
@@ -156,7 +169,7 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
             vPn2i[j] = vPn2[mvMatches12[idx].second];
         }
 
-        cv::Mat Hn = ComputeH21(vPn1i,vPn2i);
+        cv::Mat Hn = ComputeH21(vPn1i,vPn2i); 
         H21i = T2inv*Hn*T1;
         H12i = H21i.inv();
 
@@ -223,11 +236,22 @@ void Initializer::FindFundamental(vector<bool> &vbMatchesInliers, float &score, 
 }
 
 
+// |x'|     | h1 h2 h3 ||x|
+// |y'| = a | h4 h5 h6 ||y|  x' = a H x, a为尺度因子
+// |1 |     | h7 h8 h9 ||1|
+// 使用DLT求解该模型
+// x' = a H x 
+// (x') 叉乘 (H x)  = 0
+//  Ah = 0
+// A = | 0  0  0 -x -y -1 xy' yy' y'|  h = | h1 h2 h3 h4 h5 h6 h7 h8 h9 |
+//     |-x -y -1  0  0  0 xx' yx' x'|
+// 通过SVD求解Ah = 0，A'A最小特征值对应的特征向量即为解
+
 cv::Mat Initializer::ComputeH21(const vector<cv::Point2f> &vP1, const vector<cv::Point2f> &vP2)
 {
     const int N = vP1.size();
 
-    cv::Mat A(2*N,9,CV_32F);
+    cv::Mat A(2*N,9,CV_32F); //每个匹配提供2个等式
 
     for(int i=0; i<N; i++)
     {
@@ -262,9 +286,14 @@ cv::Mat Initializer::ComputeH21(const vector<cv::Point2f> &vP1, const vector<cv:
 
     cv::SVDecomp(A,w,u,vt,cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
 
-    return vt.row(8).reshape(0, 3);
+    return vt.row(8).reshape(0, 3); //vt最后一行->3行
 }
 
+
+ 
+// x'Fx = 0 整理可得：Af = 0
+// A = | x'x x'y x' y'x y'y y' x y 1 |, f = | f1 f2 f3 f4 f5 f6 f7 f8 f9 |
+// 通过SVD求解Af = 0，A'A最小特征值对应的特征向量即为解
 cv::Mat Initializer::ComputeF21(const vector<cv::Point2f> &vP1,const vector<cv::Point2f> &vP2)
 {
     const int N = vP1.size();
@@ -297,7 +326,7 @@ cv::Mat Initializer::ComputeF21(const vector<cv::Point2f> &vP1,const vector<cv::
 
     cv::SVDecomp(Fpre,w,u,vt,cv::SVD::MODIFY_A | cv::SVD::FULL_UV);
 
-    w.at<float>(2)=0;
+    w.at<float>(2)=0; // 添加秩为2的约束，将第3个奇异值设为0
 
     return  u*cv::Mat::diag(w)*vt;
 }
@@ -329,7 +358,7 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
     vbMatchesInliers.resize(N);
 
     float score = 0;
-
+    // 基于卡方检验？？
     const float th = 5.991;
 
     const float invSigmaSquare = 1.0/(sigma*sigma);
@@ -352,9 +381,9 @@ float Initializer::CheckHomography(const cv::Mat &H21, const cv::Mat &H12, vecto
         const float w2in1inv = 1.0/(h31inv*u2+h32inv*v2+h33inv);
         const float u2in1 = (h11inv*u2+h12inv*v2+h13inv)*w2in1inv;
         const float v2in1 = (h21inv*u2+h22inv*v2+h23inv)*w2in1inv;
-
+        // 计算重投影误差
         const float squareDist1 = (u1-u2in1)*(u1-u2in1)+(v1-v2in1)*(v1-v2in1);
-
+        // 根据方差归一化误差
         const float chiSquare1 = squareDist1*invSigmaSquare;
 
         if(chiSquare1>th)
@@ -424,14 +453,14 @@ float Initializer::CheckFundamental(const cv::Mat &F21, vector<bool> &vbMatchesI
 
         // Reprojection error in second image
         // l2=F21x1=(a2,b2,c2)
-
+        // F21*x1可以算出x1在图像中x2对应的线l
         const float a2 = f11*u1+f12*v1+f13;
         const float b2 = f21*u1+f22*v1+f23;
         const float c2 = f31*u1+f32*v1+f33;
-
+        // x2应该在l这条线上:x2点乘l = 0 
         const float num2 = a2*u2+b2*v2+c2;
 
-        const float squareDist1 = num2*num2/(a2*a2+b2*b2);
+        const float squareDist1 = num2*num2/(a2*a2+b2*b2);// 点到线的几何距离的平方
 
         const float chiSquare1 = squareDist1*invSigmaSquare;
 
@@ -467,13 +496,28 @@ float Initializer::CheckFundamental(const cv::Mat &F21, vector<bool> &vbMatchesI
     return score;
 }
 
+
+//                          |0 -1  0|
+// E = U Sigma V'   let W = |1  0  0|
+//                          |0  0  1|
+// 得到4个解 E = [R|t]
+// R1 = UWV' R2 = UW'V' t1 = U3 t2 = -U3
+
+// 从F恢复R t
+// MVG 9.19
+
+
+/*
+minParallax : the minimum threshold of parallax
+minTriangulated : the minimum threshold of number of triangles
+*/
 bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv::Mat &K,
                             cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
 {
     int N=0;
     for(size_t i=0, iend = vbMatchesInliers.size() ; i<iend; i++)
         if(vbMatchesInliers[i])
-            N++;
+            N++;   //统计内点
 
     // Compute Essential Matrix from Fundamental Matrix
     cv::Mat E21 = K.t()*F21*K;
@@ -501,7 +545,7 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
     R21 = cv::Mat();
     t21 = cv::Mat();
 
-    int nMinGood = max(static_cast<int>(0.9*N),minTriangulated);
+    int nMinGood = max(static_cast<int>(0.9*N),minTriangulated); //最少三角化成功点数量
 
     int nsimilar = 0;
     if(nGood1>0.7*maxGood)
@@ -514,6 +558,7 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
         nsimilar++;
 
     // If there is not a clear winner or not enough triangulated points reject initialization
+
     if(maxGood<nMinGood || nsimilar>1)
     {
         return false;
@@ -569,6 +614,8 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
     return false;
 }
 
+
+
 bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv::Mat &K,
                       cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
 {
@@ -594,6 +641,7 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     float d2 = w.at<float>(1);
     float d3 = w.at<float>(2);
 
+    // 检查特征值是否降序排列
     if(d1/d2<1.00001 || d2/d3<1.00001)
     {
         return false;
@@ -731,6 +779,11 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
     return false;
 }
 
+
+
+// kp1 P1 :  camera1的点和投影矩阵
+// kp2 P2 :  camera2的点和投影矩阵
+// x3D : 三角化得到的点
 void Initializer::Triangulate(const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Mat &P1, const cv::Mat &P2, cv::Mat &x3D)
 {
     cv::Mat A(4,4,CV_32F);
@@ -743,9 +796,20 @@ void Initializer::Triangulate(const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, 
     cv::Mat u,w,vt;
     cv::SVD::compute(A,w,u,vt,cv::SVD::MODIFY_A| cv::SVD::FULL_UV);
     x3D = vt.row(3).t();
-    x3D = x3D.rowRange(0,3)/x3D.at<float>(3);
+    x3D = x3D.rowRange(0,3)/x3D.at<float>(3); //尺度归一化 
 }
 
+
+/**
+ * ＠brief 归一化特征点到同一尺度（作为normalize DLT的输入）
+ *
+ * [x' y' 1]' = T * [x y 1]' 
+ * 归一化后x', y'的均值为0，sum(abs(x_i'-0))=1，sum(abs((y_i'-0))=1
+ * 
+ * @param vKeys             特征点在图像上的坐标
+ * @param vNormalizedPoints 特征点归一化后的坐标
+ * @param T                 将特征点归一化的矩阵
+ */
 void Initializer::Normalize(const vector<cv::KeyPoint> &vKeys, vector<cv::Point2f> &vNormalizedPoints, cv::Mat &T)
 {
     float meanX = 0;
@@ -768,25 +832,28 @@ void Initializer::Normalize(const vector<cv::KeyPoint> &vKeys, vector<cv::Point2
 
     for(int i=0; i<N; i++)
     {
-        vNormalizedPoints[i].x = vKeys[i].pt.x - meanX;
+        vNormalizedPoints[i].x = vKeys[i].pt.x - meanX; //去均值
         vNormalizedPoints[i].y = vKeys[i].pt.y - meanY;
 
         meanDevX += fabs(vNormalizedPoints[i].x);
         meanDevY += fabs(vNormalizedPoints[i].y);
     }
 
-    meanDevX = meanDevX/N;
+    meanDevX = meanDevX/N; 
     meanDevY = meanDevY/N;
 
     float sX = 1.0/meanDevX;
     float sY = 1.0/meanDevY;
 
+    // 将x坐标和y坐标分别进行缩放，使得x坐标和y坐标的一阶绝对矩分别为1
     for(int i=0; i<N; i++)
     {
         vNormalizedPoints[i].x = vNormalizedPoints[i].x * sX;
         vNormalizedPoints[i].y = vNormalizedPoints[i].y * sY;
     }
-
+    // |sX  0  -meanx*sX|
+    // |0   sY -meany*sY|
+    // |0   0      1    |
     T = cv::Mat::eye(3,3,CV_32F);
     T.at<float>(0,0) = sX;
     T.at<float>(1,1) = sY;
@@ -795,6 +862,14 @@ void Initializer::Normalize(const vector<cv::KeyPoint> &vKeys, vector<cv::Point2
 }
 
 
+//检查 R t是否正确
+/*
+vKeys1 vKeys2 vMatches12 vbMatchesInliers : 匹配信息
+K : 内参矩阵
+th2: 计算出来的3d点重投影到 image下的误差平方的 threshold
+vP3D vbGood ： 最后三角化的点(camera1 坐标系下) 成功三角化的点标志位
+parallax : 计算出来的视差： 角度
+*/
 int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::KeyPoint> &vKeys1, const vector<cv::KeyPoint> &vKeys2,
                        const vector<Match> &vMatches12, vector<bool> &vbMatchesInliers,
                        const cv::Mat &K, vector<cv::Point3f> &vP3D, float th2, vector<bool> &vbGood, float &parallax)
@@ -811,11 +886,11 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
     vector<float> vCosParallax;
     vCosParallax.reserve(vKeys1.size());
 
-    // Camera 1 Projection Matrix K[I|0]
+    // Camera 1 Projection Matrix K[I|0], :意思是以 camera1为参考(世界系)
     cv::Mat P1(3,4,CV_32F,cv::Scalar(0));
     K.copyTo(P1.rowRange(0,3).colRange(0,3));
 
-    cv::Mat O1 = cv::Mat::zeros(3,1,CV_32F);
+    cv::Mat O1 = cv::Mat::zeros(3,1,CV_32F); // camera1 的光心为原点
 
     // Camera 2 Projection Matrix K[R|t]
     cv::Mat P2(3,4,CV_32F);
@@ -823,7 +898,7 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
     t.copyTo(P2.rowRange(0,3).col(3));
     P2 = K*P2;
 
-    cv::Mat O2 = -R.t()*t;
+    cv::Mat O2 = -R.t()*t; //camera2 的光心 世界系下
 
     int nGood=0;
 
@@ -836,7 +911,7 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
         const cv::KeyPoint &kp2 = vKeys2[vMatches12[i].second];
         cv::Mat p3dC1;
 
-        Triangulate(kp1,kp2,P1,P2,p3dC1);
+        Triangulate(kp1,kp2,P1,P2,p3dC1); //得到的 p3dC1是在 camera1的坐标系下
 
         if(!isfinite(p3dC1.at<float>(0)) || !isfinite(p3dC1.at<float>(1)) || !isfinite(p3dC1.at<float>(2)))
         {
@@ -845,15 +920,16 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
         }
 
         // Check parallax
-        cv::Mat normal1 = p3dC1 - O1;
+        cv::Mat normal1 = p3dC1 - O1; // 向量
         float dist1 = cv::norm(normal1);
 
         cv::Mat normal2 = p3dC1 - O2;
         float dist2 = cv::norm(normal2);
 
-        float cosParallax = normal1.dot(normal2)/(dist1*dist2);
+        float cosParallax = normal1.dot(normal2)/(dist1*dist2); //视差的角度
 
         // Check depth in front of first camera (only if enough parallax, as "infinite" points can easily go to negative depth)
+        // 3D点深度为负，在第一个摄像头后方，淘汰
         if(p3dC1.at<float>(2)<=0 && cosParallax<0.99998)
             continue;
 
@@ -885,6 +961,7 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
         if(squareError2>th2)
             continue;
 
+        // 统计通过检验的3D点个数，记录3D点视差角
         vCosParallax.push_back(cosParallax);
         vP3D[vMatches12[i].first] = cv::Point3f(p3dC1.at<float>(0),p3dC1.at<float>(1),p3dC1.at<float>(2));
         nGood++;
@@ -893,12 +970,14 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
             vbGood[vMatches12[i].first]=true;
     }
 
+
     if(nGood>0)
     {
         sort(vCosParallax.begin(),vCosParallax.end());
 
+        // 取一个较大的视差角代替image1 和 image2之间的视差
         size_t idx = min(50,int(vCosParallax.size()-1));
-        parallax = acos(vCosParallax[idx])*180/CV_PI;
+        parallax = acos(vCosParallax[idx])*180/CV_PI; //角度
     }
     else
         parallax=0;
@@ -906,14 +985,17 @@ int Initializer::CheckRT(const cv::Mat &R, const cv::Mat &t, const vector<cv::Ke
     return nGood;
 }
 
+
+// 分解E得到 R t, E自由度 5
 void Initializer::DecomposeE(const cv::Mat &E, cv::Mat &R1, cv::Mat &R2, cv::Mat &t)
 {
     cv::Mat u,w,vt;
     cv::SVD::compute(E,w,u,vt);
 
-    u.col(2).copyTo(t);
-    t=t/cv::norm(t);
+    u.col(2).copyTo(t); // TODO: ??
+    t=t/cv::norm(t); //归一化，尺度等价性, 另外一个 -t
 
+    //逆时针90度的旋转矩阵
     cv::Mat W(3,3,CV_32F,cv::Scalar(0));
     W.at<float>(0,1)=-1;
     W.at<float>(1,0)=1;

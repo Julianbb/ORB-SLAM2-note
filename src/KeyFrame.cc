@@ -229,7 +229,7 @@ int KeyFrame::GetWeight(KeyFrame *pKF)
 }
 
 
-
+// 添加地图点： pMP地图点 idx地图点对应keypoints的index
 void KeyFrame::AddMapPoint(MapPoint *pMP, const size_t &idx)
 {
     unique_lock<mutex> lock(mMutexFeatures);
