@@ -42,12 +42,14 @@ Sim3Solver::Sim3Solver(KeyFrame *pKF1, KeyFrame *pKF2, const vector<MapPoint *> 
 
     vector<MapPoint*> vpKeyFrameMP1 = pKF1->GetMapPointMatches();
 
-    mN1 = vpMatched12.size();
+    mN1 = vpMatched12.size(); // mN1为pKF1和pKF2匹配个数
 
     mvpMapPoints1.reserve(mN1);
     mvpMapPoints2.reserve(mN1);
+
     mvpMatches12 = vpMatched12;
     mvnIndices1.reserve(mN1);
+
     mvX3Dc1.reserve(mN1);
     mvX3Dc2.reserve(mN1);
 
@@ -87,12 +89,13 @@ Sim3Solver::Sim3Solver(KeyFrame *pKF1, KeyFrame *pKF2, const vector<MapPoint *> 
             mvnMaxError1.push_back(9.210*sigmaSquare1);
             mvnMaxError2.push_back(9.210*sigmaSquare2);
 
+            //地图点
             mvpMapPoints1.push_back(pMP1);
             mvpMapPoints2.push_back(pMP2);
-            mvnIndices1.push_back(i1);
+            mvnIndices1.push_back(i1); //匹配中pKF1中的index
 
             cv::Mat X3D1w = pMP1->GetWorldPos();
-            mvX3Dc1.push_back(Rcw1*X3D1w+tcw1);
+            mvX3Dc1.push_back(Rcw1*X3D1w+tcw1); 
 
             cv::Mat X3D2w = pMP2->GetWorldPos();
             mvX3Dc2.push_back(Rcw2*X3D2w+tcw2);
@@ -137,6 +140,8 @@ void Sim3Solver::SetRansacParameters(double probability, int minInliers, int max
     mnIterations = 0;
 }
 
+
+// Ransac求解mvX3Dc1和mvX3Dc2之间Sim3，函数返回mvX3Dc2到mvX3Dc1的Sim3变换
 cv::Mat Sim3Solver::iterate(int nIterations, bool &bNoMore, vector<bool> &vbInliers, int &nInliers)
 {
     bNoMore = false;
@@ -337,6 +342,8 @@ void Sim3Solver::ComputeSim3(cv::Mat &P1, cv::Mat &P2)
 }
 
 
+
+
 void Sim3Solver::CheckInliers()
 {
     vector<cv::Mat> vP1im2, vP2im1;
@@ -347,8 +354,8 @@ void Sim3Solver::CheckInliers()
 
     for(size_t i=0; i<mvP1im1.size(); i++)
     {
-        cv::Mat dist1 = mvP1im1[i]-vP2im1[i];
-        cv::Mat dist2 = vP1im2[i]-mvP2im2[i];
+        cv::Mat dist1 = mvP1im1[i]-vP2im1[i];// 把2系中的3D经过Sim3变换(mT12i)到1系中计算重投影坐标
+        cv::Mat dist2 = vP1im2[i]-mvP2im2[i];// 把1系中的3D经过Sim3变换(mT21i)到2系中计算重投影坐标
 
         const float err1 = dist1.dot(dist1);
         const float err2 = dist2.dot(dist2);
@@ -362,6 +369,7 @@ void Sim3Solver::CheckInliers()
             mvbInliersi[i]=false;
     }
 }
+
 
 
 cv::Mat Sim3Solver::GetEstimatedRotation()
@@ -379,6 +387,8 @@ float Sim3Solver::GetEstimatedScale()
     return mBestScale;
 }
 
+
+//3D(world系) -> 2D
 void Sim3Solver::Project(const vector<cv::Mat> &vP3Dw, vector<cv::Mat> &vP2D, cv::Mat Tcw, cv::Mat K)
 {
     cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
@@ -402,6 +412,8 @@ void Sim3Solver::Project(const vector<cv::Mat> &vP3Dw, vector<cv::Mat> &vP2D, cv
     }
 }
 
+
+// 3D(camera系) -> 2D
 void Sim3Solver::FromCameraToImage(const vector<cv::Mat> &vP3Dc, vector<cv::Mat> &vP2D, cv::Mat K)
 {
     const float &fx = K.at<float>(0,0);

@@ -276,7 +276,7 @@ set<MapPoint*> KeyFrame::GetMapPoints()
 }
 
 
-//返回关键帧的高质量的地图的个数(观测次数大于minObs)
+//返回关键帧的高质量的地图点的个数(观测次数大于minObs)
 int KeyFrame::TrackedMapPoints(const int &minObs)
 {
     unique_lock<mutex> lock(mMutexFeatures);

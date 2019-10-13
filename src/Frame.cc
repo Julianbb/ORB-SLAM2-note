@@ -291,7 +291,7 @@ void Frame::UpdatePoseMatrices()
  * @brief 判断地图点pMP 在不在 viewingCosLimit的视野范围内
  * 计算了重投影坐标，观测方向夹角，预测在当前帧的尺度
  * @param  pMP             地图点
- * @param  viewingCosLimit 视角和平均视角的方向阈值
+ * @param  viewingCosLimit 视角和平均视角的方向阈值, 0.5=60°
  * @return                 true if is in view
  */
 

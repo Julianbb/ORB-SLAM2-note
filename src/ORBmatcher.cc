@@ -62,7 +62,7 @@ int ORBmatcher::SearchByProjection(Frame &F, const vector<MapPoint*> &vpMapPoint
     for(size_t iMP=0; iMP<vpMapPoints.size(); iMP++) //遍历地图点
     {
         MapPoint* pMP = vpMapPoints[iMP];
-        if(!pMP->mbTrackInView) 
+        if(!pMP->mbTrackInView) //已经匹配过，将不被投影
             continue;
 
         if(pMP->isBad())

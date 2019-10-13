@@ -67,7 +67,7 @@ protected:
     KeyFrame* mpKF1;
     KeyFrame* mpKF2;
 
-    std::vector<cv::Mat> mvX3Dc1;
+    std::vector<cv::Mat> mvX3Dc1; // 匹配中 camera1系下的3D点
     std::vector<cv::Mat> mvX3Dc2;
     std::vector<MapPoint*> mvpMapPoints1;
     std::vector<MapPoint*> mvpMapPoints2;
@@ -106,7 +106,7 @@ protected:
     std::vector<size_t> mvAllIndices;
 
     // Projections
-    std::vector<cv::Mat> mvP1im1;
+    std::vector<cv::Mat> mvP1im1; // 像素点
     std::vector<cv::Mat> mvP2im2;
 
     // RANSAC probability
