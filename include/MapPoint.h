@@ -84,8 +84,8 @@ public:
 public:
     long unsigned int mnId; //全局id
     static long unsigned int nNextId;
-    long int mnFirstKFid;
-    long int mnFirstFrame;
+    long int mnFirstKFid; //第一个观测到的此地图点的KeyFrame的id
+    long int mnFirstFrame;//最后一个观测到的此地图点的KeyFrame的id
     int nObs; //观测数量
 
     // Variables used by the tracking
@@ -100,7 +100,7 @@ public:
 
     // Variables used by local mapping
     long unsigned int mnBALocalForKF;
-    long unsigned int mnFuseCandidateForKF;
+    long unsigned int mnFuseCandidateForKF; //将和哪个 KeyFrame进行融合
 
     // Variables used by loop closing
     long unsigned int mnLoopPointForKF;
