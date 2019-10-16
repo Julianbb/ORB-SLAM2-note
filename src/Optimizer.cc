@@ -37,7 +37,10 @@
 namespace ORB_SLAM2
 {
 
-
+// pMap中所有的MapPoints和关键帧做bundle adjustment优化
+// 这个全局BA优化在本程序中有两个地方使用：
+// a.单目初始化：CreateInitialMapMonocular函数
+// b.闭环优化：RunGlobalBundleAdjustment函数
 void Optimizer::GlobalBundleAdjustemnt(Map* pMap, int nIterations, bool* pbStopFlag, const unsigned long nLoopKF, const bool bRobust)
 {
     vector<KeyFrame*> vpKFs = pMap->GetAllKeyFrames();
@@ -45,15 +48,36 @@ void Optimizer::GlobalBundleAdjustemnt(Map* pMap, int nIterations, bool* pbStopF
     BundleAdjustment(vpKFs,vpMP,nIterations,pbStopFlag, nLoopKF, bRobust);
 }
 
-
+/**
+ * @brief bundle adjustment Optimization
+ * 
+ * 3D-2D 最小化重投影误差 e = (u,v) - project(Tcw*Pw) 
+ * 
+ * 1. Vertex: g2o::VertexSE3Expmap()，即当前帧的Tcw
+ *            g2o::VertexSBAPointXYZ()，MapPoint的mWorldPos
+ * 2. Edge:
+ *     - g2o::EdgeSE3ProjectXYZ()，BaseBinaryEdge
+ *         + Vertex：待优化当前帧的Tcw
+ *         + Vertex：待优化MapPoint的mWorldPos
+ *         + measurement：MapPoint在当前帧中的二维位置(u,v)
+ *         + InfoMatrix: invSigma2(与特征点所在的尺度有关)
+ *         
+ * @param   vpKFs    关键帧 
+ *          vpMP     MapPoints
+ *          nIterations 迭代次数（20次）
+ *          pbStopFlag  是否强制暂停
+ *          nLoopKF  loop 关键帧的个数
+ *          bRobust  是否使用核函数
+ */
 void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<MapPoint *> &vpMP,
                                  int nIterations, bool* pbStopFlag, const unsigned long nLoopKF, const bool bRobust)
 {
     vector<bool> vbNotIncludedMP;
     vbNotIncludedMP.resize(vpMP.size());
 
+    // 步骤1：初始化g2o优化器
     g2o::SparseOptimizer optimizer;
-    g2o::BlockSolver_6_3::LinearSolverType * linearSolver;
+    g2o::BlockSolver_6_3::LinearSolverType* linearSolver;
 
     linearSolver = new g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>();
 
@@ -65,8 +89,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
     if(pbStopFlag)
         optimizer.setForceStopFlag(pbStopFlag);
 
-    long unsigned int maxKFid = 0;
+    long unsigned int maxKFid = 0; //记录最大帧的id号
 
+
+    // 步骤2：向优化器添加顶点
     // Set KeyFrame vertices
     for(size_t i=0; i<vpKFs.size(); i++)
     {
@@ -75,7 +101,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
             continue;
         g2o::VertexSE3Expmap * vSE3 = new g2o::VertexSE3Expmap();
         vSE3->setEstimate(Converter::toSE3Quat(pKF->GetPose()));
-        vSE3->setId(pKF->mnId);
+        vSE3->setId(pKF->mnId);  //将顶点的id就设为 KF的id, 方便添加边的时候指定 顶点
         vSE3->setFixed(pKF->mnId==0);
         optimizer.addVertex(vSE3);
         if(pKF->mnId>maxKFid)
@@ -102,6 +128,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
         int nEdges = 0;
         //SET EDGES
+        // 步骤3：向优化器添加投影边
         for(map<KeyFrame*,size_t>::const_iterator mit=observations.begin(); mit!=observations.end(); mit++)
         {
 
@@ -113,7 +140,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
             const cv::KeyPoint &kpUn = pKF->mvKeysUn[mit->second];
 
-            if(pKF->mvuRight[mit->second]<0)
+            if(pKF->mvuRight[mit->second]<0)// 单目或RGBD相机
             {
                 Eigen::Matrix<double,2,1> obs;
                 obs << kpUn.pt.x, kpUn.pt.y;
@@ -123,9 +150,10 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
                 e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
                 e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKF->mnId)));
                 e->setMeasurement(obs);
-                const float &invSigma2 = pKF->mvInvLevelSigma2[kpUn.octave];
+                const float &invSigma2 = pKF->mvInvLevelSigma2[kpUn.octave]; 
                 e->setInformation(Eigen::Matrix2d::Identity()*invSigma2);
 
+                //
                 if(bRobust)
                 {
                     g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
@@ -140,7 +168,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
                 optimizer.addEdge(e);
             }
-            else
+            else //双目
             {
                 Eigen::Matrix<double,3,1> obs;
                 const float kp_ur = pKF->mvuRight[mit->second];
@@ -172,7 +200,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
             }
         }
 
-        if(nEdges==0)
+        if(nEdges==0) //3d点没有观测
         {
             optimizer.removeVertex(vPoint);
             vbNotIncludedMP[i]=true;
@@ -189,6 +217,7 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
 
     // Recover optimized data
 
+    // 步骤5：得到优化的结果
     //Keyframes
     for(size_t i=0; i<vpKFs.size(); i++)
     {
@@ -197,11 +226,11 @@ void Optimizer::BundleAdjustment(const vector<KeyFrame *> &vpKFs, const vector<M
             continue;
         g2o::VertexSE3Expmap* vSE3 = static_cast<g2o::VertexSE3Expmap*>(optimizer.vertex(pKF->mnId));
         g2o::SE3Quat SE3quat = vSE3->estimate();
-        if(nLoopKF==0)
+        if(nLoopKF==0) //正常
         {
             pKF->SetPose(Converter::toCvMat(SE3quat));
         }
-        else
+        else//loop 
         {
             pKF->mTcwGBA.create(4,4,CV_32F);
             Converter::toCvMat(SE3quat).copyTo(pKF->mTcwGBA);
