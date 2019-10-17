@@ -121,16 +121,16 @@ protected:
 
     // Loop detector variables
     KeyFrame* mpCurrentKF;
-    KeyFrame* mpMatchedKF;
+    KeyFrame* mpMatchedKF;//最终和当前关键帧形成loop的回环帧
     std::vector<ConsistentGroup> mvConsistentGroups;
-    std::vector<KeyFrame*> mvpEnoughConsistentCandidates;
-    std::vector<KeyFrame*> mvpCurrentConnectedKFs;
-    std::vector<MapPoint*> mvpCurrentMatchedPoints;
-    std::vector<MapPoint*> mvpLoopMapPoints;
-    cv::Mat mScw;
+    std::vector<KeyFrame*> mvpEnoughConsistentCandidates; //loop 的候选匹配
+    std::vector<KeyFrame*> mvpCurrentConnectedKFs; // 与当前帧连接的关键帧
+    std::vector<MapPoint*> mvpCurrentMatchedPoints; // 当前帧和匹配帧的匹配的 MapPoints
+    std::vector<MapPoint*> mvpLoopMapPoints;  //loop帧相连的所有帧的　MapPoints
+    cv::Mat mScw; // Sim(cw) 世界->当前帧的　sim变换
     g2o::Sim3 mg2oScw;
 
-    long unsigned int mLastLoopKFid;
+    long unsigned int mLastLoopKFid; //上一次闭环的关键帧的id,应初始化为０, 每次发生闭环的时候跟新
 
     // Variables related to Global Bundle Adjustment
     bool mbRunningGBA;

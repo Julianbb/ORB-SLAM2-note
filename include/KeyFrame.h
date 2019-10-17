@@ -137,8 +137,8 @@ public:
     long unsigned int mnFuseTargetForKF;
 
     // Variables used by the local mapping
-    long unsigned int mnBALocalForKF;
-    long unsigned int mnBAFixedForKF;
+    long unsigned int mnBALocalForKF; //相当于一个标志，同样的值代表属于当前的local mapping的 local window
+    long unsigned int mnBAFixedForKF; //相当于一个标志，同样的值代表属于当前的local mapping的 fix window
 
     // Variables used by the keyframe database
     long unsigned int mnLoopQuery; //表明: 此帧和 id为mnLoopQuery 的关键帧可能为loop
