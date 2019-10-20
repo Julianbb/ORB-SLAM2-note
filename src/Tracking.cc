@@ -769,7 +769,7 @@ void Tracking::CreateInitialMapMonocular()
 
         MapPoint* pMP = new MapPoint(worldPos,pKFcur,mpMap);
         // 步骤4.2：表示该KeyFrame的哪个特征点可以个3D点
-        pKFini->AddMapPoint(pMP,i);观测到哪
+        pKFini->AddMapPoint(pMP,i);
         pKFcur->AddMapPoint(pMP,mvIniMatches[i]);
 
 

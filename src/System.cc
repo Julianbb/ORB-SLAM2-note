@@ -113,6 +113,9 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLoopCloser->SetLocalMapper(mpLocalMapper);
 }
 
+
+
+
 cv::Mat System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp)
 {
     if(mSensor!=STEREO)
@@ -266,6 +269,8 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
 
     return Tcw;
 }
+
+
 
 void System::ActivateLocalizationMode()
 {

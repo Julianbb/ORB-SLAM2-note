@@ -140,6 +140,7 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
     const int N = mvMatches12.size();
 
     // Normalize coordinates
+    // 将mvKeys1和mvKey2归一化到均值为0，一阶绝对矩为1，归一化矩阵分别为T1、T2
     vector<cv::Point2f> vPn1, vPn2;
     cv::Mat T1, T2;
     Normalize(mvKeys1,vPn1, T1);
@@ -169,10 +170,11 @@ void Initializer::FindHomography(vector<bool> &vbMatchesInliers, float &score, c
             vPn2i[j] = vPn2[mvMatches12[idx].second];
         }
 
+        // 恢复原始的均值和尺度
         cv::Mat Hn = ComputeH21(vPn1i,vPn2i); 
         H21i = T2inv*Hn*T1;
         H12i = H21i.inv();
-
+        // 利用重投影误差为当次RANSAC的结果评分
         currentScore = CheckHomography(H21i, H12i, vbCurrentInliers, mSigma);
 
         if(currentScore>score)
@@ -525,6 +527,8 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
     cv::Mat R1, R2, t;
 
     // Recover the 4 motion hypotheses
+    // 虽然这个函数对t有归一化，但并没有决定单目整个SLAM过程的尺度
+    // 因为CreateInitialMapMonocular函数对3D点深度会缩放，然后反过来对 t 有改变
     DecomposeE(E21,R1,R2,t);  
 
     cv::Mat t1=t;
@@ -615,7 +619,9 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers, cv::Mat &F21, cv:
 }
 
 
-
+// 从H21分解出 8组　R ,t, n, 
+//对每一个解进行分析，检测点是不是都在两个相机的前方，
+//并且统计重投影误差较小的点的个数，找出8个解中统计得到点数最多的的那个解作为最终的解
 bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv::Mat &K,
                       cv::Mat &R21, cv::Mat &t21, vector<cv::Point3f> &vP3D, vector<bool> &vbTriangulated, float minParallax, int minTriangulated)
 {
@@ -781,9 +787,38 @@ bool Initializer::ReconstructH(vector<bool> &vbMatchesInliers, cv::Mat &H21, cv:
 
 
 
-// kp1 P1 :  camera1的点和投影矩阵
-// kp2 P2 :  camera2的点和投影矩阵
-// x3D : 三角化得到的点
+// Trianularization: 已知匹配特征点对{x x'} 和 各自相机矩阵{P P'}, 估计三维点 X
+// x' = P'X  x = PX
+// 它们都属于 x = aPX模型
+//                         |X|
+// |x|     |p1 p2  p3  p4 ||Y|     |x|    |--p0--||.|
+// |y| = a |p5 p6  p7  p8 ||Z| ===>|y| = a|--p1--||X|
+// |z|     |p9 p10 p11 p12||1|     |z|    |--p2--||.|
+// 采用DLT的方法：x叉乘PX = 0
+// |yp2 -  p1|     |0|
+// |p0 -  xp2| X = |0|
+// |xp1 - yp0|     |0|
+// 两个点:
+// |yp2   -  p1  |     |0|
+// |p0    -  xp2 | X = |0| ===> AX = 0
+// |y'p2' -  p1' |     |0|
+// |p0'   - x'p2'|     |0|
+// 变成程序中的形式：
+// |xp2  - p0 |     |0|
+// |yp2  - p1 | X = |0| ===> AX = 0
+// |x'p2'- p0'|     |0|
+// |y'p2'- p1'|     |0|
+
+/**
+ * @brief 给定投影矩阵P1,P2和图像上的点kp1,kp2，从而恢复3D坐标
+ *
+ * @param kp1 特征点, in reference frame
+ * @param kp2 特征点, in current frame
+ * @param P1  投影矩阵P1
+ * @param P2  投影矩阵P２
+ * @param x3D 三维点
+ * @see       Multiple View Geometry in Computer Vision - 12.2 Linear triangulation methods p312
+ */
 void Initializer::Triangulate(const cv::KeyPoint &kp1, const cv::KeyPoint &kp2, const cv::Mat &P1, const cv::Mat &P2, cv::Mat &x3D)
 {
     cv::Mat A(4,4,CV_32F);
