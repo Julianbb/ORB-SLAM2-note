@@ -33,6 +33,8 @@ namespace ORB_SLAM2
 
 const float eps = 1e-4;
 
+
+// 计算　轴角(x,y,z)对应的 R
 cv::Mat ExpSO3(const float &x, const float &y, const float &z)
 {
     cv::Mat I = cv::Mat::eye(3,3,CV_32F);
@@ -235,6 +237,8 @@ void ViewerAR::Run()
 
 }
 
+
+
 void ViewerAR::SetImagePose(const cv::Mat &im, const cv::Mat &Tcw, const int &status, const vector<cv::KeyPoint> &vKeys, const vector<ORB_SLAM2::MapPoint*> &vMPs)
 {
     unique_lock<mutex> lock(mMutexPoseImage);
@@ -244,6 +248,8 @@ void ViewerAR::SetImagePose(const cv::Mat &im, const cv::Mat &Tcw, const int &st
     mvKeys = vKeys;
     mvMPs = vMPs;
 }
+
+
 
 void ViewerAR::GetImagePose(cv::Mat &im, cv::Mat &Tcw, int &status, std::vector<cv::KeyPoint> &vKeys,  std::vector<MapPoint*> &vMPs)
 {
@@ -284,6 +290,8 @@ void ViewerAR::LoadCameraPose(const cv::Mat &Tcw)
         M.Load();
     }
 }
+
+
 
 void ViewerAR::PrintStatus(const int &status, const bool &bLocMode, cv::Mat &im)
 {

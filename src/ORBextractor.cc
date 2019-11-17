@@ -871,7 +871,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
                 if(maxX>maxBorderX)
                     maxX = maxBorderX;
 
-                vector<cv::KeyPoint> vKeysCell;
+                vector<cv::KeyPoint> vKeysCell; //一个cell内的特征点
                 FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                      vKeysCell,iniThFAST,true);
 

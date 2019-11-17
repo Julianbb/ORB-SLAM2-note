@@ -444,7 +444,7 @@ int Optimizer::PoseOptimization(Frame *pFrame)
 
             const size_t idx = vnIndexEdgeMono[i]; //特征点的index
 
-            if(pFrame->mvbOutlier[idx])
+            if(pFrame->mvbOutlier[idx]) // my idea: 下一次优化后将前一次优化后置为outlier的点重新算一遍
             {
                 e->computeError(); //g2o只会计算active edge的误差
             }
