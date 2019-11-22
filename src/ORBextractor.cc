@@ -898,7 +898,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         keypoints.reserve(nfeatures);
 
         keypoints = DistributeOctTree(vToDistributeKeys, minBorderX, maxBorderX,
-                                      minBorderY, maxBorderY,mnFeaturesPerLevel[level], level);
+                                      minBorderY, maxBorderY, mnFeaturesPerLevel[level], level);
         //计算特征点Patch的大小，根据每层的尺度的不同而不同
         const int scaledPatchSize = PATCH_SIZE*mvScaleFactor[level]; // TODO: 层越高，PATCH_SIZE越大??
 
